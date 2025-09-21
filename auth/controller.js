@@ -55,4 +55,3 @@ const recoverPassword = async (req, res) => {
     console.log('ERROR: ', e)
   }
 }
-sendCode()
