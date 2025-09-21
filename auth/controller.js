@@ -1,6 +1,6 @@
 import { pool } from '../db.js'
 import jwt from 'jsonwebtoken'
-import { registerUser, loginUser } from '../auth/queries.js'
+import { registerUser, loginUser, setRefreshToken } from '../auth/queries.js'
 import { SIGNATURE } from "../SIGNATURE.js";
 import { generateCode } from '../utils/code.js'
 import { sendMessage } from "../mailgun/index.js";
@@ -17,8 +17,13 @@ export const register = async (req, res) => {
 
     const result = await pool.query(registerUser, [email, password])
 
-    const token = jwt.sign({ userId: result.rows[0].id }, SIGNATURE, { expiresIn: '5m' });
-    res.status(201).send({ token });
+    const accessToken = jwt.sign({ userId: result.rows[0].id }, SIGNATURE, { expiresIn: '5m' });
+    const refreshToken = jwt.sign({ userId: result.rows[0].id }, SIGNATURE, { expiresIn: '14d' });
+
+    const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+    await pool.query(setRefreshToken, [result.rows[0].id, refreshToken, expiresAt]);
+
+    res.status(201).send({ accessToken, refreshToken });
   } catch (e) {
     if (e.code === '23505') {
       return res.status(409).send({ error: 'User already exists' });
@@ -38,8 +43,13 @@ export const login = async (req, res) => {
       return res.status(400).send({ error: 'User not found' });
     }
 
-    const token = jwt.sign({ userId: result.rows[0].id }, SIGNATURE, { expiresIn: '5m' });
-    res.status(200).send({ token });
+    const accessToken = jwt.sign({ userId: result.rows[0].id }, SIGNATURE, { expiresIn: '5m' });
+    const refreshToken = jwt.sign({ userId: result.rows[0].id }, SIGNATURE, { expiresIn: '14d' });
+
+    const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+    await pool.query(setRefreshToken, [result.rows[0].id, refreshToken, expiresAt]);
+
+    res.status(200).send({ accessToken, refreshToken });
   } catch (e) {
     console.log('ERROR: ', e)
   }
